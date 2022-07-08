@@ -4,9 +4,11 @@ const express = require("express")
 const bodyParser = require("body-parser")
 const ejs = require("ejs")
 const mongoose = require("mongoose")
-const encrypt = require("mongoose-encryption")
-
+// const encrypt = require("mongoose-encryption")
+// const md5=require("md5")
+const bcrypt = require("bcrypt")
 const app = express()
+const saltRounds = 10
 
 app.use(bodyParser.urlencoded({ extended: true }))
 
@@ -24,7 +26,7 @@ const userSchema = new mongoose.Schema({
 })
 
 // Encryption
-userSchema.plugin(encrypt, { secret: process.env.SECRET, encryptedFields: ["password"] })
+// userSchema.plugin(encrypt, { secret: process.env.SECRET, encryptedFields: ["password"] })
 
 // Creating a model
 const User = new mongoose.model("User", userSchema)
@@ -32,20 +34,23 @@ const User = new mongoose.model("User", userSchema)
 app.get("/", function (request, response) {
 	response.render("home")
 })
+
 app.get("/register", function (request, response) {
 	response.render("register")
 })
 app.post("/register", function (request, response) {
-	const newUser = new User({
-		email: request.body.username,
-		password: request.body.password,
-	})
-	newUser.save(function (err) {
-		if (err) {
-			console.log(err)
-		} else {
-			response.render("secrets")
-		}
+	bcrypt.hash(request.body.password, saltRounds, function (err, hash) {
+		const newUser = new User({
+			email: request.body.username,
+			password: hash,
+		})
+		newUser.save(function (err) {
+			if (err) {
+				console.log(err)
+			} else {
+				response.render("secrets")
+			}
+		})
 	})
 })
 app.get("/login", function (request, response) {
@@ -59,8 +64,15 @@ app.post("/login", function (request, response) {
 		if (err) {
 			console.log(err)
 		} else {
-			if (foundUser.password === password) {
-				response.render("secrets")
+			if (foundUser) {
+				bcrypt.compare(password, foundUser.password, function (err, result) {
+					// result == true
+					if (result == true) {
+						response.render("secrets")
+					} else {
+						console.log(err)
+					}
+				})
 			} else {
 				console.log(err)
 			}
